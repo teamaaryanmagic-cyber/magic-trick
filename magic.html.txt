@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <title>मॅजिक नोटपॅड</title>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js'></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #notepad { width: 90vw; height: 80vh; background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); padding: 20px; box-sizing: border-box; position: relative; display: flex; flex-direction: column; }
+        #output { flex-grow: 1; font-size: 24px; border: none; outline: none; resize: none; color: #333; }
+        #status { font-size: 14px; color: #888; margin-top: 10px; text-align: right; }
+        video { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="notepad" onclick="triggerMagic()">
+    <textarea id="output" placeholder="येथे मजकूर दिसेल..."></textarea>
+    <div id="status">स्थिती: तयार</div>
+</div>
+
+<video id="video" playsinline></video>
+
+<script>
+    const video = document.getElementById('video');
+    const output = document.getElementById('output');
+    const status = document.getElementById('status');
+    let isScanning = false;
+
+    async function setupCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            return new Promise((resolve) => video.onloadedmetadata = resolve);
+        } catch (err) {
+            alert('कॅमेरा सुरू करण्यात अडचण आली: ' + err);
+        }
+    }
+
+    async function triggerMagic() {
+        if (isScanning) return;
+        isScanning = true;
+        status.innerText = 'स्थिती: स्कॅन होत आहे...';
+        
+        await setupCamera();
+        video.play();
+
+        setTimeout(async () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            const imageData = canvas.toDataURL('image/png');
+            
+            // कॅमेरा बंद करणे
+            video.srcObject.getTracks().forEach(track => track.stop());
+            video.pause();
+
+            status.innerText = 'स्थिती: प्रक्रिया सुरू आहे...';
+
+            try {
+                const { data: { text } } = await Tesseract.recognize(imageData, 'mar+eng');
+                output.value = text.trim();
+                status.innerText = 'स्थिती: यशस्वी';
+            } catch (err) {
+                status.innerText = 'स्थिती: त्रुटी आली';
+            } finally {
+                isScanning = false;
+            }
+        }, 2000); // २ सेकंदांनंतर कॅप्चर
+    }
+</script>
+</body>
+</html>
